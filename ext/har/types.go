@@ -3,16 +3,16 @@
 package har
 
 import (
-    "bytes"
-    "io"
-    "net/http"
-    "net/url"
-    "mime"
-    "net"
-    "strings"
-    "time"
+	"bytes"
+	"io"
+	"mime"
+	"net"
+	"net/http"
+	"net/url"
+	"strings"
+	"time"
 
-    "github.com/elazarl/goproxy"
+	"github.com/lucky2688/goproxy"
 )
 
 type Har struct {
@@ -44,7 +44,7 @@ func New() *Har {
 }
 
 func makeNewEntries() []Entry {
-    const startingEntrySize int = 1000
+	const startingEntrySize int = 1000
 	return make([]Entry, 0, startingEntrySize)
 }
 
@@ -107,71 +107,71 @@ type Request struct {
 }
 
 func (entry *Entry) fillIPAddress(req *http.Request) {
-    host := req.URL.Hostname()
-    
-    // try to parse the host as an IP address
-    if ip := net.ParseIP(host); ip != nil {
-        entry.ServerIpAddress = ip.String()
-        return
-    } 
+	host := req.URL.Hostname()
+
+	// try to parse the host as an IP address
+	if ip := net.ParseIP(host); ip != nil {
+		entry.ServerIpAddress = ip.String()
+		return
+	}
 }
 
 // Shared utility function for reading body content
 func readBody(ctx *goproxy.ProxyCtx, body io.ReadCloser) ([]byte, error) {
-    content, err := io.ReadAll(body)
-    if err != nil {
-        ctx.Proxy.Logger.Printf("Error reading body: %v", err)
-        return nil, err
-    }
-    return content, nil
+	content, err := io.ReadAll(body)
+	if err != nil {
+		ctx.Proxy.Logger.Printf("Error reading body: %v", err)
+		return nil, err
+	}
+	return content, nil
 }
 
 // Shared function for handling mime types
 func parseMediaType(ctx *goproxy.ProxyCtx, header http.Header) string {
-    contentType := header.Get("Content-Type")
-    if contentType == "" {
-        return ""
-    }
-    
-    mediaType, _, err := mime.ParseMediaType(contentType)
-    if err != nil {
-        ctx.Proxy.Logger.Printf("Error parsing media type: %v", err)
-        return ""
-    }
-    return mediaType
+	contentType := header.Get("Content-Type")
+	if contentType == "" {
+		return ""
+	}
+
+	mediaType, _, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		ctx.Proxy.Logger.Printf("Error parsing media type: %v", err)
+		return ""
+	}
+	return mediaType
 }
 
 func parsePostData(ctx *goproxy.ProxyCtx, req *http.Request) *PostData {
-    mediaType := parseMediaType(ctx, req.Header)
-    if mediaType == "" {
-        return nil
-    }
-    
-    harPostData := &PostData{
-        MimeType: mediaType,
-    } 
+	mediaType := parseMediaType(ctx, req.Header)
+	if mediaType == "" {
+		return nil
+	}
 
-    if err := req.ParseForm(); err != nil {
-        ctx.Proxy.Logger.Printf("Error parsing form: %v", err)
-        return nil
-    }
-    
-    if len(req.PostForm) > 0 {
-        for k, vals := range req.PostForm {
-            for _, v := range vals {
-                param := PostDataParam{
-                    Name:  k,
-                    Value: v,
-                }
-                harPostData.Params = append(harPostData.Params, param)
-            }
-        }
-    } else if body, err := readBody(ctx, req.Body); err == nil {
-        req.Body = io.NopCloser(bytes.NewBuffer(body))
-        harPostData.Text = string(body)
-    }
-    
-    return harPostData
+	harPostData := &PostData{
+		MimeType: mediaType,
+	}
+
+	if err := req.ParseForm(); err != nil {
+		ctx.Proxy.Logger.Printf("Error parsing form: %v", err)
+		return nil
+	}
+
+	if len(req.PostForm) > 0 {
+		for k, vals := range req.PostForm {
+			for _, v := range vals {
+				param := PostDataParam{
+					Name:  k,
+					Value: v,
+				}
+				harPostData.Params = append(harPostData.Params, param)
+			}
+		}
+	} else if body, err := readBody(ctx, req.Body); err == nil {
+		req.Body = io.NopCloser(bytes.NewBuffer(body))
+		harPostData.Text = string(body)
+	}
+
+	return harPostData
 }
 
 type Response struct {
@@ -188,76 +188,76 @@ type Response struct {
 }
 
 func parseResponse(ctx *goproxy.ProxyCtx) *Response {
-    if ctx.Resp == nil {
-        return nil
-    } 
+	if ctx.Resp == nil {
+		return nil
+	}
 
-    resp := ctx.Resp
-    harResponse := Response{
-        Status:      resp.StatusCode,
-        StatusText:  http.StatusText(resp.StatusCode),
-        HttpVersion: resp.Proto,
-        Cookies:     parseCookies(resp.Cookies()),
-        Headers:     parseStringArrMap(resp.Header),
-        RedirectUrl: resp.Header.Get("Location"),
-        BodySize:    resp.ContentLength,
-        HeadersSize: -1,
-    }
+	resp := ctx.Resp
+	harResponse := Response{
+		Status:      resp.StatusCode,
+		StatusText:  http.StatusText(resp.StatusCode),
+		HttpVersion: resp.Proto,
+		Cookies:     parseCookies(resp.Cookies()),
+		Headers:     parseStringArrMap(resp.Header),
+		RedirectUrl: resp.Header.Get("Location"),
+		BodySize:    resp.ContentLength,
+		HeadersSize: -1,
+	}
 
-    if resp.Body == nil {
-        return &harResponse
-    }
+	if resp.Body == nil {
+		return &harResponse
+	}
 
-    body, err := readBody(ctx, resp.Body)
-    if err != nil {
-        return &harResponse
-    }
+	body, err := readBody(ctx, resp.Body)
+	if err != nil {
+		return &harResponse
+	}
 
-    resp.Body = io.NopCloser(bytes.NewBuffer(body))
-    harResponse.Content = Content{
-        Size:     len(body),
-        Text:     string(body),
-        MimeType: parseMediaType(ctx, resp.Header),
-    }
+	resp.Body = io.NopCloser(bytes.NewBuffer(body))
+	harResponse.Content = Content{
+		Size:     len(body),
+		Text:     string(body),
+		MimeType: parseMediaType(ctx, resp.Header),
+	}
 
-    return &harResponse
+	return &harResponse
 }
 
 func parseRequest(ctx *goproxy.ProxyCtx) *Request {
-    if ctx.Req == nil {
-        ctx.Proxy.Logger.Printf("ParseRequest: nil request")
-        return nil
-    }
-    
-    req := ctx.Req
-    harRequest := &Request{
-        Method:      req.Method,
-        Url:         req.URL.String(),
-        HttpVersion: req.Proto,
-        Cookies:     parseCookies(req.Cookies()),
-        Headers:     parseStringArrMap(req.Header),
-        QueryString: parseStringArrMap(req.URL.Query()),
-        BodySize:    req.ContentLength,
-        HeadersSize: -1,
-    }
-    
-    if req.Method != http.MethodPost && req.Method != http.MethodPut {
-        return harRequest
-    }
+	if ctx.Req == nil {
+		ctx.Proxy.Logger.Printf("ParseRequest: nil request")
+		return nil
+	}
 
-    ctx.Proxy.Logger.Printf("ParseRequest: creating PostData, hasBody=%v, hasGetBody=%v", 
-        req.Body != nil, req.GetBody != nil)
-        
-    if postData := parsePostData(ctx, req); postData != nil {
-        harRequest.PostData = postData
-    }
+	req := ctx.Req
+	harRequest := &Request{
+		Method:      req.Method,
+		Url:         req.URL.String(),
+		HttpVersion: req.Proto,
+		Cookies:     parseCookies(req.Cookies()),
+		Headers:     parseStringArrMap(req.Header),
+		QueryString: parseStringArrMap(req.URL.Query()),
+		BodySize:    req.ContentLength,
+		HeadersSize: -1,
+	}
 
-    return harRequest
+	if req.Method != http.MethodPost && req.Method != http.MethodPut {
+		return harRequest
+	}
+
+	ctx.Proxy.Logger.Printf("ParseRequest: creating PostData, hasBody=%v, hasGetBody=%v",
+		req.Body != nil, req.GetBody != nil)
+
+	if postData := parsePostData(ctx, req); postData != nil {
+		harRequest.PostData = postData
+	}
+
+	return harRequest
 }
 
 func parseStringArrMap(stringArrMap map[string][]string) []NameValuePair {
 	harQueryString := make([]NameValuePair, 0, len(stringArrMap))
-	
+
 	for k, v := range stringArrMap {
 		escapedKey, err := url.QueryUnescape(k)
 		if err != nil {
@@ -275,10 +275,10 @@ func parseStringArrMap(stringArrMap map[string][]string) []NameValuePair {
 			Name:  escapedKey,
 			Value: escapedValues,
 		}
-		
+
 		harQueryString = append(harQueryString, harNameValuePair)
 	}
-	
+
 	return harQueryString
 }
 

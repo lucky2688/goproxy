@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/elazarl/goproxy"
-	"github.com/elazarl/goproxy/ext/html"
+	"github.com/lucky2688/goproxy"
+	"github.com/lucky2688/goproxy/ext/html"
 	"log"
 	"net/http"
 	"regexp"

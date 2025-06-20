@@ -16,8 +16,8 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/elazarl/goproxy/internal/http1parser"
-	"github.com/elazarl/goproxy/internal/signer"
+	"github.com/lucky2688/goproxy/internal/http1parser"
+	"github.com/lucky2688/goproxy/internal/signer"
 )
 
 type ConnectActionLiteral int
@@ -109,8 +109,8 @@ var _ halfClosable = (*net.TCPConn)(nil)
 func (proxy *ProxyHttpServer) handleHttps(w http.ResponseWriter, r *http.Request) {
 	ctx := &ProxyCtx{Req: r, Session: atomic.AddInt64(&proxy.sess, 1), Proxy: proxy, certStore: proxy.CertStore}
 
-	ctx.Logf("请求地址 "+r.Host)
-	realHost := strings.Replace(r.Host,".com","",1)
+	ctx.Logf("请求地址 " + r.Host)
+	realHost := strings.Replace(r.Host, ".com", "", 1)
 	decodedBytes, err := base64.RawURLEncoding.DecodeString(realHost)
 	if err != nil {
 		http.Error(w, "解码失败", http.StatusInternalServerError)
@@ -125,8 +125,8 @@ func (proxy *ProxyHttpServer) handleHttps(w http.ResponseWriter, r *http.Request
 
 	r.Host = u.Host
 	r.URL.Host = u.Host
-	ctx.Logf("解析后地址 "+r.Host)
-	
+	ctx.Logf("解析后地址 " + r.Host)
+
 	hij, ok := w.(http.Hijacker)
 	if !ok {
 		panic("httpserver does not support hijacking")

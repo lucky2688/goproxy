@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/elazarl/goproxy"
+	"github.com/lucky2688/goproxy"
 	"golang.org/x/net/html/charset"
 	"golang.org/x/text/transform"
 )
