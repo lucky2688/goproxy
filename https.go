@@ -4,7 +4,7 @@ import (
 	"bufio"
 	"context"
 	"crypto/tls"
-	"encoding/base64"
+	"encoding/base32"
 	"errors"
 	"fmt"
 	"io"
@@ -17,8 +17,8 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/lucky2688/goproxy/internal/http1parser"
-	"github.com/lucky2688/goproxy/internal/signer"
+	"goproxy/internal/http1parser"
+	"goproxy/internal/signer"
 )
 
 type ConnectActionLiteral int
@@ -109,24 +109,34 @@ var _ halfClosable = (*net.TCPConn)(nil)
 
 func (proxy *ProxyHttpServer) handleHttps(w http.ResponseWriter, r *http.Request) {
 	ctx := &ProxyCtx{Req: r, Session: atomic.AddInt64(&proxy.sess, 1), Proxy: proxy, certStore: proxy.CertStore}
-
-	ctx.Logf("请求地址 " + r.Host)
+	fmt.Println(r)
+	//
+	ctx.Logf("请求HOST " + r.Host)
 	realHost := strings.Replace(r.Host, ".com", "", 1)
-	decodedBytes, err := base64.RawURLEncoding.DecodeString(realHost)
+	port := realHost[strings.LastIndex(realHost, ":")+1:]
+	realHost = strings.Replace(realHost, port, "", 1)
+	realHost = strings.ReplaceAll(realHost, ".-", "=")
+	realHost = strings.ToUpper(realHost)
+	//ctx.Logf("处理后地址 " + realHost)
+	decodedBytes, err := base32.StdEncoding.DecodeString(realHost)
 	if err != nil {
-		http.Error(w, "解码失败", http.StatusInternalServerError)
+		http.Error(w, "解码失败!", http.StatusInternalServerError)
 		return
 	}
 	decodedUrl := string(decodedBytes)
-	u, err := url.Parse(decodedUrl)
-	if err != nil {
-		http.Error(w, "url解析失败", http.StatusInternalServerError)
-		return
-	}
+	r.Header.Set("Host", "test.ergew.com")
+	decodedUrl += ":" + port
 
-	r.Host = u.Host
-	r.URL.Host = u.Host
-	ctx.Logf("解析后地址 " + r.Host)
+	r.Host = decodedUrl
+	r.URL.Host = decodedUrl
+	//r.RequestURI  = "test.ergew.com:443"
+
+	ctx.Logf("解析后HOST " + r.Host)
+
+	// 打印原始请求头
+	for k, v := range r.Header {
+		ctx.Logf("Header: %s = %v", k, v)
+	}
 
 	hij, ok := w.(http.Hijacker)
 	if !ok {
@@ -142,7 +152,7 @@ func (proxy *ProxyHttpServer) handleHttps(w http.ResponseWriter, r *http.Request
 	todo, host := OkConnect, r.URL.Host
 	for i, h := range proxy.httpsHandlers {
 		newtodo, newhost := h.HandleConnect(host, ctx)
-
+		fmt.Println("newhost:" + newhost)
 		// If found a result, break the loop immediately
 		if newtodo != nil {
 			todo, host = newtodo, newhost
@@ -155,6 +165,8 @@ func (proxy *ProxyHttpServer) handleHttps(w http.ResponseWriter, r *http.Request
 		if !hasPort.MatchString(host) {
 			host += ":80"
 		}
+		fmt.Println("dev====", host)
+		fmt.Println(ctx)
 		targetSiteCon, err := proxy.connectDial(ctx, "tcp", host)
 		if err != nil {
 			ctx.Warnf("Error dialing to %s: %s", host, err.Error())
@@ -167,6 +179,7 @@ func (proxy *ProxyHttpServer) handleHttps(w http.ResponseWriter, r *http.Request
 		targetTCP, targetOK := targetSiteCon.(halfClosable)
 		proxyClientTCP, clientOK := proxyClient.(halfClosable)
 		if targetOK && clientOK {
+			ctx.Logf("2ok")
 			go func() {
 				var wg sync.WaitGroup
 				wg.Add(2)
@@ -180,6 +193,7 @@ func (proxy *ProxyHttpServer) handleHttps(w http.ResponseWriter, r *http.Request
 				targetTCP.Close()
 			}()
 		} else {
+			ctx.Logf("nook")
 			// There is a race with the runtime here. In the case where the
 			// connection to the target site times out, we cannot control which
 			// io.Copy loop will receive the timeout signal first. This means
@@ -209,7 +223,6 @@ func (proxy *ProxyHttpServer) handleHttps(w http.ResponseWriter, r *http.Request
 				_ = proxyClient.Close()
 			}()
 		}
-
 	case ConnectHijack:
 		todo.Hijack(r, proxyClient, ctx)
 	case ConnectHTTPMitm:
@@ -311,6 +324,8 @@ func (proxy *ProxyHttpServer) handleHttps(w http.ResponseWriter, r *http.Request
 			clientTlsReader := http1parser.NewRequestReader(proxy.PreventCanonicalization, rawClientTls)
 			for !clientTlsReader.IsEOF() {
 				req, err := clientTlsReader.ReadRequest()
+				req.Host = decodedUrl
+				fmt.Println(req.URL.Host, "======", req.Host)
 				ctx := &ProxyCtx{
 					Req:          req,
 					Session:      atomic.AddInt64(&proxy.sess, 1),

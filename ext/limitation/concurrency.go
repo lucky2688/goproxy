@@ -3,7 +3,7 @@ package limitation
 import (
 	"net/http"
 
-	"github.com/lucky2688/goproxy"
+	"goproxy"
 )
 
 // ConcurrentRequests implements a mechanism to limit the number of

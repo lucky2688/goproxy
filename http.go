@@ -1,11 +1,10 @@
 package goproxy
 
 import (
-	"encoding/base64"
+	"encoding/base32"
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"strings"
 	"sync/atomic"
 )
@@ -13,24 +12,29 @@ import (
 func (proxy *ProxyHttpServer) handleHttp(w http.ResponseWriter, r *http.Request) {
 	ctx := &ProxyCtx{Req: r, Session: atomic.AddInt64(&proxy.sess, 1), Proxy: proxy}
 
-	ctx.Logf("请求地址 " + r.Host)
+	fmt.Println(r)
+
+	ctx.Logf("请求HOST " + r.Host)
 	realHost := strings.Replace(r.Host, ".com", "", 1)
-	decodedBytes, err := base64.RawURLEncoding.DecodeString(realHost)
+	realHost = strings.ReplaceAll(realHost, ".-", "=")
+	realHost = strings.ToUpper(realHost)
+	//ctx.Logf("处理后地址 " + realHost)
+	decodedBytes, err := base32.StdEncoding.DecodeString(realHost)
 	if err != nil {
 		http.Error(w, "解码失败", http.StatusInternalServerError)
 		return
 	}
 	decodedUrl := string(decodedBytes)
-	fmt.Println("解码后" + decodedUrl)
-	u, err := url.Parse(decodedUrl)
-	if err != nil {
-		http.Error(w, "url解析失败", http.StatusInternalServerError)
-		return
-	}
 
-	r.Host = u.Host
-	r.URL.Host = u.Host
-	ctx.Logf("解析后地址 " + r.Host)
+	r.Host = decodedUrl
+	r.URL.Host = decodedUrl
+
+	ctx.Logf("解析后HOST " + r.Host)
+
+	// 打印原始请求头
+	for k, v := range r.Header {
+		ctx.Logf("Header: %s = %v", k, v)
+	}
 
 	ctx.Logf("Got request %v %v %v %v", r.URL.Path, r.Host, r.Method, r.URL.String())
 	if !r.URL.IsAbs() {
@@ -38,6 +42,8 @@ func (proxy *ProxyHttpServer) handleHttp(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	r, resp := proxy.filterRequest(r, ctx)
+
+	fmt.Println(r)
 
 	if resp == nil {
 		if !proxy.KeepHeader {
@@ -59,7 +65,7 @@ func (proxy *ProxyHttpServer) handleHttp(w http.ResponseWriter, r *http.Request)
 	}
 
 	resp = proxy.filterResponse(resp, ctx)
-
+	fmt.Println(resp)
 	if resp == nil {
 		var errorString string
 		if ctx.Error != nil {

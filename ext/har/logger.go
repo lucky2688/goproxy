@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/lucky2688/goproxy"
+	"goproxy"
 )
 
 // ExportFunc is a function type that users can implement to handle exported entries

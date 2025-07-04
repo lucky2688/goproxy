@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/lucky2688/goproxy"
+	"goproxy"
 )
 
 var unauthorizedMsg = []byte("407 Proxy Authentication Required")

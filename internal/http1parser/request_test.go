@@ -10,9 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/lucky2688/goproxy/internal/http1parser"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"goproxy/internal/http1parser"
 )
 
 const (

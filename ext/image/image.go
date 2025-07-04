@@ -2,8 +2,8 @@ package goproxy_image
 
 import (
 	"bytes"
-	. "github.com/lucky2688/goproxy"
-	"github.com/lucky2688/goproxy/regretable"
+	. "goproxy"
+	"goproxy/regretable"
 	"image"
 	_ "image/gif"
 	"image/jpeg"

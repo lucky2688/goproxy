@@ -7,7 +7,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/lucky2688/goproxy"
+	"goproxy"
 )
 
 func main() {

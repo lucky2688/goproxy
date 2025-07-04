@@ -1,4 +1,4 @@
-module github.com/lucky2688/goproxy
+module goproxy
 
 go 1.20
 

@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"regexp"
 
-	"github.com/lucky2688/goproxy"
+	"goproxy"
 )
 
 func main() {

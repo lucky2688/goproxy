@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lucky2688/goproxy"
-	"github.com/lucky2688/goproxy/internal/signer"
+	"goproxy"
+	"goproxy/internal/signer"
 )
 
 func orFatal(t *testing.T, msg string, err error) {

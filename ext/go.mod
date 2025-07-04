@@ -1,11 +1,11 @@
-module github.com/lucky2688/goproxy/ext
+module goproxy/ext
 
 go 1.23.0
 
 toolchain go1.23.9
 
 require (
-	github.com/lucky2688/goproxy v0.0.0-20241217120900-7711dfa3811c
+	goproxy v0.0.0-20241217120900-7711dfa3811c
 	github.com/stretchr/testify v1.10.0
 	golang.org/x/net v0.36.0
 	golang.org/x/text v0.22.0

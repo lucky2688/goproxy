@@ -2,9 +2,9 @@ package har
 
 import (
 	"context"
-	"github.com/lucky2688/goproxy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"goproxy"
 	"io"
 	"net/http"
 	"net/http/httptest"
