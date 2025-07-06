@@ -114,7 +114,7 @@ func (proxy *ProxyHttpServer) handleHttps(w http.ResponseWriter, r *http.Request
 	ctx.Logf("请求HOST " + r.Host)
 	realHost := strings.Replace(r.Host, ".com", "", 1)
 	port := realHost[strings.LastIndex(realHost, ":")+1:]
-	realHost = strings.Replace(realHost, port, "", 1)
+	realHost = strings.Replace(realHost, ":"+port, "", 1)
 	realHost = strings.ReplaceAll(realHost, ".-", "=")
 	realHost = strings.ToUpper(realHost)
 	//ctx.Logf("处理后地址 " + realHost)

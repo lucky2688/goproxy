@@ -8,7 +8,6 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"regexp"
 	"strings"
 
 	"goproxy"
@@ -40,22 +39,32 @@ func main() {
 	proxy := goproxy.NewProxyHttpServer()
 	proxy.Verbose = true
 
-	//// CONNECT 请求（用于 HTTPS）认证逻辑
-	//proxy.OnRequest().HandleConnectFunc(func(host string, ctx *goproxy.ProxyCtx) (*goproxy.ConnectAction, string) {
-	//	//req := ctx.Req
-	//	//reqUrlLog(req.URL.String(), getClientIP(req))
-	//	//if !basicAuthPassed(req) {
-	//	//	log.Printf("CONNECT 拒绝，认证失败 [%s]\n", host)
-	//	//	return goproxy.RejectConnect, host
-	//	//}
-	//	log.Printf("CONNECT 认证通过 [%s]\n", host)
-	//	return goproxy.OkConnect, host
-	//})
+	// CONNECT 请求（用于 HTTPS）认证逻辑
+	proxy.OnRequest().HandleConnectFunc(func(host string, ctx *goproxy.ProxyCtx) (*goproxy.ConnectAction, string) {
+		req := ctx.Req
+		go func() { //异步执行
+			defer func() { //捕获异常
+				if r := recover(); r != nil {
+					log.Printf("[reqUrlLog] panic recovered: %v", r)
+				}
+			}()
+			err := reqUrlLog(req.URL.String(), getClientIP(req))
+			if err != nil {
+				log.Printf("[reqUrlLog] request error: %v", err)
+			}
+		}()
+		if !basicAuthPassed(req) {
+			log.Printf("CONNECT 拒绝，认证失败 [%s]\n", host)
+			return goproxy.RejectConnect, host
+		}
+		log.Printf("CONNECT 认证通过 [%s]\n", host)
+		return goproxy.MitmConnect, host
+	})
 
 	// 处理 HTTPS CONNECT 请求，启用 MITM
-	proxy.OnRequest(goproxy.ReqHostMatches(regexp.MustCompile(".*:443$"))).HandleConnect(goproxy.AlwaysMitm)
+	//proxy.OnRequest().HandleConnect(goproxy.AlwaysMitm)
 
-	// 普通 HTTP 请求认证逻辑
+	// 普通 HTTP 请求认证逻辑(可选)
 	//proxy.OnRequest().DoFunc(func(r *http.Request, ctx *goproxy.ProxyCtx) (*http.Request, *http.Response) {
 	//	//reqUrlLog(r.URL.String(), getClientIP(r))
 	//	if !basicAuthPassed(r) {
@@ -86,7 +95,7 @@ func main() {
 	}
 }
 
-func reqUrlLog(url string, ip string) {
+func reqUrlLog(url string, ip string) error {
 	// 构造 JSON 数据
 	data := map[string]string{
 		"url": url,
@@ -95,12 +104,14 @@ func reqUrlLog(url string, ip string) {
 	// 编码为 JSON 字节流
 	jsonBytes, err := json.Marshal(data)
 	if err != nil {
-		log.Fatalf("JSON encode error: %v", err)
+		//log.Fatalf("JSON encode error: %v", err)
+		return fmt.Errorf("JSON encode error: %v", err)
 	}
 	// 创建 POST 请求
 	req, err := http.NewRequest("POST", "http://127.0.0.1:8000/analyze/log", bytes.NewBuffer(jsonBytes))
 	if err != nil {
-		log.Fatalf("NewRequest error: %v", err)
+		//log.Fatalf("NewRequest error: %v", err)
+		return fmt.Errorf("NewRequest error: %v", err)
 	}
 	// 设置请求头
 	req.Header.Set("Content-Type", "application/json")
@@ -108,11 +119,14 @@ func reqUrlLog(url string, ip string) {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Fatalf("Request error: %v", err)
+		//log.Fatalf("Request error: %v", err)
+		return fmt.Errorf("Request error: %v", err)
 	}
 	defer resp.Body.Close()
 
 	log.Printf("Status: %s", resp.Status)
+
+	return nil
 }
 
 func getClientIP(r *http.Request) string {
