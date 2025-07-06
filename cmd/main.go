@@ -42,17 +42,7 @@ func main() {
 	// CONNECT 请求（用于 HTTPS）认证逻辑
 	proxy.OnRequest().HandleConnectFunc(func(host string, ctx *goproxy.ProxyCtx) (*goproxy.ConnectAction, string) {
 		req := ctx.Req
-		go func() { //异步执行
-			defer func() { //捕获异常
-				if r := recover(); r != nil {
-					log.Printf("[reqUrlLog] panic recovered: %v", r)
-				}
-			}()
-			err := reqUrlLog(req.URL.String(), getClientIP(req))
-			if err != nil {
-				log.Printf("[reqUrlLog] request error: %v", err)
-			}
-		}()
+		reqUrlLogRecover(req.URL.String(), getClientIP(req))
 		if !basicAuthPassed(req) {
 			log.Printf("CONNECT 拒绝，认证失败 [%s]\n", host)
 			return goproxy.RejectConnect, host
@@ -64,9 +54,9 @@ func main() {
 	// 处理 HTTPS CONNECT 请求，启用 MITM
 	//proxy.OnRequest().HandleConnect(goproxy.AlwaysMitm)
 
-	// 普通 HTTP 请求认证逻辑(可选)
+	////普通 HTTP 请求认证逻辑(可选)
 	//proxy.OnRequest().DoFunc(func(r *http.Request, ctx *goproxy.ProxyCtx) (*http.Request, *http.Response) {
-	//	//reqUrlLog(r.URL.String(), getClientIP(r))
+	//	reqUrlLogRecover(r.URL.String(), getClientIP(r))
 	//	if !basicAuthPassed(r) {
 	//		log.Printf("HTTP 请求认证失败 [%s %s]\n", r.Method, r.URL.String())
 	//		resp := goproxy.NewResponse(r,
@@ -93,6 +83,20 @@ func main() {
 	if err != nil {
 		log.Fatal("启动失败：", err)
 	}
+}
+
+func reqUrlLogRecover(url string, ip string) {
+	go func() { //异步执行
+		defer func() { //捕获异常
+			if r := recover(); r != nil {
+				log.Printf("[reqUrlLog] panic recovered: %v", r)
+			}
+		}()
+		err := reqUrlLog(url, ip)
+		if err != nil {
+			log.Printf("[reqUrlLog] request error: %v", err)
+		}
+	}()
 }
 
 func reqUrlLog(url string, ip string) error {
