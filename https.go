@@ -4,14 +4,15 @@ import (
 	"bufio"
 	"context"
 	"crypto/tls"
-	"encoding/base32"
 	"errors"
 	"fmt"
+	"goproxy/cmd/util"
 	"io"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -109,33 +110,23 @@ var _ halfClosable = (*net.TCPConn)(nil)
 
 func (proxy *ProxyHttpServer) handleHttps(w http.ResponseWriter, r *http.Request) {
 	ctx := &ProxyCtx{Req: r, Session: atomic.AddInt64(&proxy.sess, 1), Proxy: proxy, certStore: proxy.CertStore}
-	fmt.Println(r)
-	//
-	ctx.Logf("请求HOST " + r.Host)
-	realHost := strings.Replace(r.Host, ".com", "", 1)
-	port := realHost[strings.LastIndex(realHost, ":")+1:]
-	realHost = strings.Replace(realHost, ":"+port, "", 1)
-	realHost = strings.ReplaceAll(realHost, ".-", "=")
-	realHost = strings.ToUpper(realHost)
-	//ctx.Logf("处理后地址 " + realHost)
-	decodedBytes, err := base32.StdEncoding.DecodeString(realHost)
+	fmt.Println("请求HOST " + r.Host)
+	decodedHost, _, hostName, err := util.DecodeUrl(r.Host)
 	if err != nil {
-		http.Error(w, "解码失败!", http.StatusInternalServerError)
+		fmt.Println("请求HOST 异常:" + r.Host)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	decodedUrl := string(decodedBytes)
-	r.Header.Set("Host", "test.ergew.com")
-	decodedUrl += ":" + port
 
-	r.Host = decodedUrl
-	r.URL.Host = decodedUrl
-	//r.RequestURI  = "test.ergew.com:443"
+	r.Host = decodedHost
+	r.URL.Host = decodedHost
 
 	ctx.Logf("解析后HOST " + r.Host)
 
-	// 打印原始请求头
+	r.Header.Set("Proxy-Connection", "close")
+	// 打印请求头
 	for k, v := range r.Header {
-		ctx.Logf("Header: %s = %v", k, v)
+		ctx.Logf("Header1: %s = %v", k, v)
 	}
 
 	hij, ok := w.(http.Hijacker)
@@ -306,6 +297,8 @@ func (proxy *ProxyHttpServer) handleHttps(w http.ResponseWriter, r *http.Request
 		tlsConfig := defaultTLSConfig
 		if todo.TLSConfig != nil {
 			var err error
+			fmt.Println("证书host============" + host)
+			//tlsConfig, err = todo.TLSConfig(host, ctx)
 			tlsConfig, err = todo.TLSConfig(host, ctx)
 			if err != nil {
 				httpError(proxyClient, ctx, err)
@@ -318,14 +311,12 @@ func (proxy *ProxyHttpServer) handleHttps(w http.ResponseWriter, r *http.Request
 			defer rawClientTls.Close()
 			if err := rawClientTls.Handshake(); err != nil {
 				ctx.Warnf("Cannot handshake client %v %v", r.Host, err)
-				return
+				//return
 			}
 
 			clientTlsReader := http1parser.NewRequestReader(proxy.PreventCanonicalization, rawClientTls)
 			for !clientTlsReader.IsEOF() {
 				req, err := clientTlsReader.ReadRequest()
-				req.Host = decodedUrl
-				fmt.Println(req.URL.Host, "======", req.Host)
 				ctx := &ProxyCtx{
 					Req:          req,
 					Session:      atomic.AddInt64(&proxy.sess, 1),
@@ -339,7 +330,8 @@ func (proxy *ProxyHttpServer) handleHttps(w http.ResponseWriter, r *http.Request
 				if err != nil {
 					return
 				}
-
+				req.Host = hostName
+				fmt.Println(req.URL.Host, "======", req.Host)
 				// since we're converting the request, need to carry over the
 				// original connecting IP as well
 				req.RemoteAddr = r.RemoteAddr
@@ -362,6 +354,35 @@ func (proxy *ProxyHttpServer) handleHttps(w http.ResponseWriter, r *http.Request
 					ctx.Req = req
 
 					req, resp := proxy.filterRequest(req, ctx)
+
+					//req.Host = decodedHost
+					//if req.Header.Get("Referer") != "" {
+					//	req.Header.Set("Referer", "https://"+hostName+"/")
+					//}
+					//if req.Header.Get("Origin") != "" {
+					//	req.Header.Set("Origin", "https://"+hostName+"/")
+					//}
+
+					req.Header.Set("Connection", "close")
+					//if req.Header.Get("Cookie") != "" {
+					//	req.Header.Set("Cookie", "AEC=AVh_V2iuhWHafMqp69D9j9CCsNbCazcjUF4elv4f6T_1tkTc4pbbiJIOyGg; GOOGLE_ABUSE_EXEMPTION=ID=31c66097d27d0e10:TM=1752204374:C=R:IP=116.206.17.71-:S=aHAE800pgM5GQRBeZ06KvLs; DV=kz4kGl7eA7gVMMNiN6YW-gYEdnV_fxk; NID=525=KDizXCgcvqivmt0Uwcp2Mh6BeF5YRcdU6iYt1y7ozloehGOoVKuNPW-GbpVxcHfRa_7ZXYwnPabpZYmCMfHg0Tb-8cpUUpwiX_o3DCQ54xHSo0DyTf_eo2vKkBuaKFU9SFaehMiaYX8i9ByqleYPKoGlBa018wLJTGInJNXvhdy-e7ITOPqdBtnhO9xxXrdKTYj5coNqORFRY-aistr_Bs0yZxac-5D4M0YbRSmf7cYTij06A9-wja746avYsdMFd88dHIfgPKRHqeWyk7Q")
+					//}
+					//req.Header.Set("Cookie", util.GetCookie(req))
+
+					// 打印请求头
+					keys := make([]string, 0, len(req.Header))
+					for k := range req.Header {
+						keys = append(keys, k)
+					}
+					ctx.Logf("reqUrl: %v", req.URL.String())
+					sort.Strings(keys) // 按字典序排序 key
+					for _, k := range keys {
+						v := req.Header[k]
+						ctx.Logf("Header2: %s = %v", k, v)
+					}
+					req.Header.Set("Connection", "close")
+
+					ctx.Logf("Header头已修改")
 					if resp == nil {
 						if req.Method == "PRI" {
 							// Handle HTTP/2 connections.
@@ -396,6 +417,7 @@ func (proxy *ProxyHttpServer) handleHttps(w http.ResponseWriter, r *http.Request
 							}
 							return false
 						}
+						req.Host = decodedHost
 						if !proxy.KeepHeader {
 							RemoveProxyHeaders(ctx, req)
 						}
@@ -403,6 +425,7 @@ func (proxy *ProxyHttpServer) handleHttps(w http.ResponseWriter, r *http.Request
 							// explicitly discard request body to avoid data races in certain RoundTripper implementations
 							// see https://github.com/golang/go/issues/61596#issuecomment-1652345131
 							defer req.Body.Close()
+							req.Host = decodedHost
 							return ctx.RoundTrip(req)
 						}()
 						if err != nil {
@@ -412,6 +435,8 @@ func (proxy *ProxyHttpServer) handleHttps(w http.ResponseWriter, r *http.Request
 						ctx.Logf("resp %v", resp.Status)
 					}
 					resp = proxy.filterResponse(resp, ctx)
+					fmt.Println("==========================================================================")
+					fmt.Println(resp)
 					defer resp.Body.Close()
 
 					text := resp.Status

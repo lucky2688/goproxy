@@ -5,12 +5,11 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"goproxy"
 	"log"
 	"net"
 	"net/http"
 	"strings"
-
-	"goproxy"
 )
 
 const (
@@ -39,7 +38,7 @@ func main() {
 	proxy := goproxy.NewProxyHttpServer()
 	proxy.Verbose = true
 
-	// CONNECT 请求（用于 HTTPS）认证逻辑
+	//CONNECT 请求（用于 HTTPS）认证逻辑
 	proxy.OnRequest().HandleConnectFunc(func(host string, ctx *goproxy.ProxyCtx) (*goproxy.ConnectAction, string) {
 		req := ctx.Req
 		reqUrlLogRecover(req.URL.String(), getClientIP(req))
@@ -47,25 +46,37 @@ func main() {
 			log.Printf("CONNECT 拒绝，认证失败 [%s]\n", host)
 			return goproxy.RejectConnect, host
 		}
-		log.Printf("CONNECT 认证通过 [%s]\n", host)
+
+		log.Printf("CONNECT 认证通过MITM [%s]\n", host)
 		return goproxy.MitmConnect, host
 	})
 
-	// 处理 HTTPS CONNECT 请求，启用 MITM
 	//proxy.OnRequest().HandleConnect(goproxy.AlwaysMitm)
+
+	//proxy.Tr = &http.Transport{
+	//	DialTLSContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+	//		// 实际连接 google 的 IP 和正确的 SNI
+	//		return tls.DialWithDialer(&net.Dialer{}, network, "47.243.240.62:443", &tls.Config{
+	//			ServerName:         "test.ergew.com",
+	//			InsecureSkipVerify: true, // 可视情况决定
+	//		})
+	//		return tls.Dial(network, addr, &tls.Config{InsecureSkipVerify: true})
+	//	},
+	//}
+	// 处理 HTTPS CONNECT 请求，启用 MITM
 
 	////普通 HTTP 请求认证逻辑(可选)
 	//proxy.OnRequest().DoFunc(func(r *http.Request, ctx *goproxy.ProxyCtx) (*http.Request, *http.Response) {
-	//	reqUrlLogRecover(r.URL.String(), getClientIP(r))
-	//	if !basicAuthPassed(r) {
-	//		log.Printf("HTTP 请求认证失败 [%s %s]\n", r.Method, r.URL.String())
-	//		resp := goproxy.NewResponse(r,
-	//			goproxy.ContentTypeText,
-	//			http.StatusProxyAuthRequired,
-	//			"407 Proxy Authentication Required")
-	//		resp.Header.Set("Proxy-Authenticate", `Basic realm="GoProxy"`)
-	//		return nil, resp
-	//	}
+	//	//reqUrlLogRecover(r.URL.String(), getClientIP(r))
+	//	//if !basicAuthPassed(r) {
+	//	//	log.Printf("HTTP 请求认证失败 [%s %s]\n", r.Method, r.URL.String())
+	//	//	resp := goproxy.NewResponse(r,
+	//	//		goproxy.ContentTypeText,
+	//	//		http.StatusProxyAuthRequired,
+	//	//		"407 Proxy Authentication Required")
+	//	//	resp.Header.Set("Proxy-Authenticate", `Basic realm="GoProxy"`)
+	//	//	return nil, resp
+	//	//}
 	//	log.Printf("HTTP 请求认证通过 [%s %s]\n", r.Method, r.URL.String())
 	//	return r, nil
 	//})
